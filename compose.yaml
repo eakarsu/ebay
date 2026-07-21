@@ -1,0 +1,75 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: commerce
+      POSTGRES_USER: commerce
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - commerce-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U commerce -d commerce"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  migrate:
+    build:
+      context: .
+      target: api
+    command: ["./start.sh", "migrate"]
+    profiles: ["tools"]
+    environment: &runtime
+      DATABASE_URL: postgresql://commerce:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/commerce
+      COMMERCE_JWT_SECRET: ${COMMERCE_JWT_SECRET:?set COMMERCE_JWT_SECRET}
+      PROVIDER_WEBHOOK_SECRET: ${PROVIDER_WEBHOOK_SECRET:?set PROVIDER_WEBHOOK_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?set ALLOWED_ORIGINS}
+      PROVIDER_INVENTORY_URL: ${PROVIDER_INVENTORY_URL:?set PROVIDER_INVENTORY_URL}
+      PROVIDER_INVENTORY_TOKEN: ${PROVIDER_INVENTORY_TOKEN:?set PROVIDER_INVENTORY_TOKEN}
+      PROVIDER_TAX_URL: ${PROVIDER_TAX_URL:?set PROVIDER_TAX_URL}
+      PROVIDER_TAX_TOKEN: ${PROVIDER_TAX_TOKEN:?set PROVIDER_TAX_TOKEN}
+      PROVIDER_PAYMENT_URL: ${PROVIDER_PAYMENT_URL:?set PROVIDER_PAYMENT_URL}
+      PROVIDER_PAYMENT_TOKEN: ${PROVIDER_PAYMENT_TOKEN:?set PROVIDER_PAYMENT_TOKEN}
+      PROVIDER_SHIPPING_URL: ${PROVIDER_SHIPPING_URL:?set PROVIDER_SHIPPING_URL}
+      PROVIDER_SHIPPING_TOKEN: ${PROVIDER_SHIPPING_TOKEN:?set PROVIDER_SHIPPING_TOKEN}
+    depends_on:
+      db:
+        condition: service_healthy
+  api:
+    build:
+      context: .
+      target: api
+    environment: *runtime
+    command: ["./start.sh", "api"]
+    depends_on:
+      db:
+        condition: service_healthy
+    ports: ["127.0.0.1:8080:8080"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+  worker:
+    build:
+      context: .
+      target: api
+    environment: *runtime
+    command: ["./start.sh", "worker"]
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+  web:
+    build:
+      context: .
+      target: web
+    ports: ["127.0.0.1:8081:8080"]
+    read_only: true
+    tmpfs: ["/var/cache/nginx", "/var/run"]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+volumes:
+  commerce-db:
