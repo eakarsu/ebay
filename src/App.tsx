@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import SectionSidebar from './components/SectionSidebar';
 import type { FormEvent } from 'react';
 import { Activity, ArrowRight, CircleAlert, RefreshCw, ShieldCheck } from 'lucide-react';
 
@@ -88,13 +89,21 @@ function App() {
   }
 
   return (
+    <div className={identity ? 'codex-section-shell' : undefined}>
+      {identity && <SectionSidebar title="Governed Commerce" items={[
+        { href: '#overview', label: 'Overview' },
+        { href: '#connection', label: 'Connection' },
+        { href: '#checkout', label: 'Checkout' },
+        { href: '#provider-queue', label: 'Provider Queue' },
+        { href: '#orders', label: 'Order Ledger' },
+      ]} />}
     <main>
       <header className="topbar">
         <div className="brand"><ShieldCheck size={22} /> Governed Commerce</div>
         <span className="environment">Persistent order control plane</span>
       </header>
 
-      <section className="hero">
+      <section className="hero" id="overview">
         <div>
           <p className="eyebrow">ORDER OPERATIONS / LIVE STATE</p>
           <h1>Every transition has an owner, an idempotency key, and evidence.</h1>
@@ -105,7 +114,7 @@ function App() {
         </div>
       </section>
 
-      <section className="connection panel">
+      <section className="connection panel" id="connection">
         <div>
           <label htmlFor="api">API endpoint</label>
           <input id="api" value={apiUrl} onChange={(event) => { setApiUrl(event.target.value); resetConnection(); }} />
@@ -127,7 +136,7 @@ function App() {
       </section>
 
       <section className="workspace">
-        <article className="panel">
+        <article className="panel" id="checkout">
           <div className="panel-heading"><div><p className="eyebrow">CUSTOMER</p><h2>Start a governed checkout</h2></div><span className="status">inventory locked</span></div>
           {catalog[0] ? (
             <form className="checkout" onSubmit={checkout}>
@@ -139,14 +148,14 @@ function App() {
           ) : <p className="empty">Connect to a seeded tenant to load catalog inventory.</p>}
         </article>
 
-        <article className="panel">
+        <article className="panel" id="provider-queue">
           <div className="panel-heading"><div><p className="eyebrow">OPERATIONS</p><h2>Provider queue</h2></div><span className="status warning">explicit writes</span></div>
           <p className="muted">The worker uses durable leases, bounded retries, and one idempotency key per external mutation. Ambiguous outcomes pause for reconciliation.</p>
           <button className="secondary" onClick={processNext} disabled={busy || identity?.role !== 'operator'}>Process next due operation</button>
         </article>
       </section>
 
-      <section className="panel orders">
+      <section className="panel orders" id="orders">
         <div className="panel-heading"><div><p className="eyebrow">ORDER LEDGER</p><h2>Recent workflow state</h2></div><span className="status">immutable audit linked</span></div>
         {orders.length === 0 ? <p className="empty">No visible orders.</p> : orders.map((order) => (
           <div className="order-row" key={order.id}>
@@ -158,6 +167,7 @@ function App() {
         ))}
       </section>
     </main>
+    </div>
   );
 }
 
