@@ -11,6 +11,7 @@ export default function SectionSidebar({ title, items }: { title: string; items:
     <label htmlFor="codex-section-search">Find a section</label>
     <input id="codex-section-search" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search navigation" />
     <nav aria-label="Sections">
+      {import.meta.env.VITE_NATIVE_AI_WORKSPACE_URL && <a href={import.meta.env.VITE_NATIVE_AI_WORKSPACE_URL} target="_blank" rel="noopener">AI workspace</a>}
       {visible.map(item => <a key={item.href} href={item.href}>{item.label}</a>)}
       {visible.length === 0 && <p>No matching sections</p>}
     </nav>

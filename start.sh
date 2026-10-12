@@ -21,6 +21,8 @@ for assigned_port in "$BACKEND_PORT" "$FRONTEND_PORT";do [[ "$assigned_port" =~ 
 [ -d "$PROJECT_DIR/node_modules" ]||{ echo "Dependencies are missing" >&2;exit 1; }
 export RUNTIME_PROJECT_NAME=ebay RUNTIME_AI_ENDPOINT=/api/ai/commerce-operations-review RUNTIME_AI_FEATURE=commerce-operations-review
 export RUNTIME_AI_SYSTEM_PROMPT='You are a commerce-operations assistant. Analyze catalog, order, payment, fulfillment, refund, reconciliation, and audit risks with explicit verification and human approval steps.'
+echo "AI workspace: http://127.0.0.1:$BACKEND_PORT/ai-workspace"
+export VITE_NATIVE_AI_WORKSPACE_URL="http://127.0.0.1:$BACKEND_PORT/ai-workspace" NEXT_PUBLIC_NATIVE_AI_WORKSPACE_URL="http://127.0.0.1:$BACKEND_PORT/ai-workspace"
 node "$PROJECT_DIR/runtime/setup.mjs"
 CHILD_PIDS=()
 (cd "$PROJECT_DIR"&&exec node runtime/api.mjs)&CHILD_PIDS+=("$!")

@@ -7,6 +7,12 @@ type Identity = { id: string; email: string; role: 'customer' | 'merchant' | 'op
 type CatalogItem = { id: string; sku: string; title: string; unit_price_cents: number; available_quantity: number };
 type Order = { id: string; state: string; currency: string; total_cents: number; failure_code: string | null; created_at: string };
 
+function records<T>(payload: unknown, key: string): T[] {
+  const value = payload && typeof payload === 'object' ? (payload as Record<string, unknown>)[key] : undefined;
+  if (!Array.isArray(value)) throw new Error(`Invalid ${key} response from the API`);
+  return value as T[];
+}
+
 function money(cents: number, currency = 'USD') {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(cents / 100);
 }
@@ -41,8 +47,8 @@ function App() {
         request<{ orders: Order[] }>('/api/orders'),
       ]);
       setIdentity(session.identity);
-      setCatalog(catalogResponse.items);
-      setOrders(orderResponse.orders);
+      setCatalog(records<CatalogItem>(catalogResponse, 'items'));
+      setOrders(records<Order>(orderResponse, 'orders'));
       setNotice(`Connected as ${session.identity.role}. Live authorization is checked on every request.`);
     } catch (error) {
       setIdentity(null);
