@@ -24,8 +24,35 @@ export RUNTIME_AI_SYSTEM_PROMPT='You are a commerce-operations assistant. Analyz
 echo "AI workspace: http://127.0.0.1:$BACKEND_PORT/ai-workspace"
 export VITE_NATIVE_AI_WORKSPACE_URL="http://127.0.0.1:$BACKEND_PORT/ai-workspace" NEXT_PUBLIC_NATIVE_AI_WORKSPACE_URL="http://127.0.0.1:$BACKEND_PORT/ai-workspace"
 node "$PROJECT_DIR/runtime/setup.mjs"
+# Real commerce backend on BACKEND_PORT (frontend API base / .env PORT).
+export PORT="$BACKEND_PORT" HOST=127.0.0.1
+FRONTEND_ORIGIN="http://127.0.0.1:$FRONTEND_PORT"
+case ",${ALLOWED_ORIGINS:-}," in *'*'*) echo "ALLOWED_ORIGINS must not contain a wildcard" >&2;exit 1 ;; esac
+case ",${ALLOWED_ORIGINS:-}," in *,"$FRONTEND_ORIGIN",*) ;; *) export ALLOWED_ORIGINS="${ALLOWED_ORIGINS:+$ALLOWED_ORIGINS,}$FRONTEND_ORIGIN" ;; esac
+# Self-heal (empty-DB fix): ensure schema, then seed-if-empty before provisioning.
+if [ "$(psql "$DATABASE_URL" -At -c "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='commerce_tenants';" 2>/dev/null || true)" != "1" ]; then
+  echo "Application schema missing; applying governed commerce migrations" >&2
+  (cd "$PROJECT_DIR" && node server/migrate.js)
+fi
+seeded="no"
+if [ "$(psql "$DATABASE_URL" -At -c 'SELECT count(*) FROM commerce_catalog_items;' 2>/dev/null || echo 1)" = "0" ]; then
+  if (cd "$PROJECT_DIR" && ALLOW_DEVELOPMENT_SEED=true node server/seed-development.js >/dev/null 2>&1); then seeded="yes"; else echo "Fixture seed failed; falling back to admin provisioning only" >&2; fi
+fi
+provision_output="$(cd "$PROJECT_DIR" && node server/create-admin.js 2>&1)" && echo "$provision_output" || { case "$provision_output" in *"already"*|*"Administrator"*) echo "$provision_output" ;; *) echo "$provision_output" >&2; exit 1 ;; esac; }
+# Seed demo catalog rows into the provisioned admin tenant (catalog is tenant-scoped).
+admin_email="$(printf '%s' "${ADMIN_EMAIL:-${BOOTSTRAP_ADMIN_EMAIL:-}}" | tr '[:upper:]' '[:lower:]')"
+if [ -n "$admin_email" ] && [ "$(psql "$DATABASE_URL" -At -v admin_email="$admin_email" -c "SELECT count(*) FROM commerce_catalog_items c JOIN commerce_identities i ON i.tenant_id=c.tenant_id WHERE i.email=:'admin_email';" 2>/dev/null || echo 1)" = "0" ]; then
+  psql "$DATABASE_URL" -q -v ON_ERROR_STOP=0 -v admin_email="$admin_email" >/dev/null 2>&1 <<'SQL' || true
+INSERT INTO commerce_catalog_items(id,tenant_id,merchant_id,sku,title,unit_price_cents,inventory_on_hand)
+SELECT gen_random_uuid(), i.tenant_id, i.id, v.sku, v.title, v.price, v.inv
+FROM commerce_identities i
+CROSS JOIN (VALUES ('DEMO-WIDGET','Governed Widget (demo tenant)',2500,100),('DEMO-SENSOR','Telemetry Sensor',4999,40),('DEMO-CABLE','Braided Cable 2m',1299,250)) AS v(sku,title,price,inv)
+WHERE i.email=:'admin_email'
+ON CONFLICT (tenant_id,sku) DO NOTHING;
+SQL
+fi
 CHILD_PIDS=()
-(cd "$PROJECT_DIR"&&exec node runtime/api.mjs)&CHILD_PIDS+=("$!")
+(cd "$PROJECT_DIR"&&exec node server/server.js)&CHILD_PIDS+=("$!")
 (cd "$PROJECT_DIR"&&exec npm run dev -- --host 127.0.0.1 --port "$FRONTEND_PORT" --strictPort)&CHILD_PIDS+=("$!")
 cleanup(){ trap - EXIT INT TERM;for pid in "${CHILD_PIDS[@]}";do kill "$pid" 2>/dev/null||true;done;for pid in "${CHILD_PIDS[@]}";do wait "$pid" 2>/dev/null||true;done; }
 trap cleanup EXIT INT TERM

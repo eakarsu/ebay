@@ -44,6 +44,7 @@ function rateLimit(request, response, next) {
 
 export function createApp({ providers = configuredProviders() } = {}) {
   const app = express();
+app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
   app.disable('x-powered-by');
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cors({ origin(origin, callback) { callback(null, !origin || config.origins.includes(origin)); }, credentials: false }));
